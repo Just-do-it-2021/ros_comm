@@ -77,7 +77,7 @@ class TestRostopicOnline(unittest.TestCase):
 
         rospack = rospkg.RosPack()
         # add all dependencies to ros package path
-        pkgs = ['roswtf',
+        pkgs = ['roswtf', 'rosmake', 'ros_environment', 'diagnostic_msgs', 'rosbash', 'pluginlib', 'class_loader',
             'rosgraph', 'roslaunch', 'roslib', 'rosnode', 'rosservice',
             'rosbag', 'rosbag_storage', 'roslz4', 'rosconsole', 'roscpp', 'rosgraph_msgs', 'roslang', 'rosmaster', 'rosmsg', 'rosout', 'rosparam', 'rospy', 'rostest', 'rostopic', 'topic_tools', 'xmlrpcpp',
             'std_srvs',  # ros_comm_msgs
