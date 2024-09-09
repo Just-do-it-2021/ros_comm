@@ -48,6 +48,7 @@
 #include "ros/connection.h"
 #include "ros/transport/transport_tcp.h"
 #include "ros/transport/transport_udp.h"
+#include "ros/transport/transport_dma.h"
 #include "ros/callback_queue_interface.h"
 #include "ros/this_node.h"
 #include "ros/network.h"
@@ -353,8 +354,9 @@ bool Subscription::pubUpdate(const V_string& new_pubs)
 bool Subscription::negotiateConnection(const std::string& xmlrpc_uri)
 {
   XmlRpcValue tcpros_array, protos_array, params;
-  XmlRpcValue udpros_array;
+  XmlRpcValue udpros_array, dmaros_array;
   TransportUDPPtr udp_transport;
+  TransportDMAPtr dma_transport;
   int protos = 0;
   V_string transports = transport_hints_.getTransports();
   if (transports.empty())
@@ -395,6 +397,23 @@ bool Subscription::negotiateConnection(const std::string& xmlrpc_uri)
       tcpros_array[0] = std::string("TCPROS");
       protos_array[protos++] = tcpros_array;
     }
+    else if (*it == "DMA")
+    {
+      dma_transport = boost::make_shared<TransportDMA>(&PollManager::instance()->getPollSet());
+      dma_transport->CreateIncoming(false);
+      dmaros_array[0] = std::string("DMAROS");
+      M_string m;
+      m["topic"] = getName();
+      m["md5sum"] = md5sum();
+      m["callerid"] = this_node::getName();
+      m["type"] = datatype();
+      boost::shared_array<uint8_t> buffer;
+      uint32_t len;
+      Header::write(m, buffer, len);
+      XmlRpcValue v(buffer.get(), len);
+      dmaros_array[1] = v;
+      protos_array[protos++] = dmaros_array;
+    }
     else
     {
       ROS_WARN("Unsupported transport type hinted: %s, skipping", it->c_str());
@@ -426,6 +445,10 @@ bool Subscription::negotiateConnection(const std::string& xmlrpc_uri)
       udp_transport->close();
     }
 
+    if (dma_transport) {
+      dma_transport->close();
+    }
+
     return false;
   }
 
@@ -433,7 +456,8 @@ bool Subscription::negotiateConnection(const std::string& xmlrpc_uri)
 
   // The PendingConnectionPtr takes ownership of c, and will delete it on
   // destruction.
-  PendingConnectionPtr conn(boost::make_shared<PendingConnection>(c, udp_transport, shared_from_this(), xmlrpc_uri));
+  PendingConnectionPtr conn(boost::make_shared<PendingConnection>(
+    c, udp_transport, shared_from_this(), xmlrpc_uri, dma_transport));
 
   XMLRPCManager::instance()->addASyncConnection(conn);
   // Put this connection on the list that we'll look at later.
@@ -445,7 +469,7 @@ bool Subscription::negotiateConnection(const std::string& xmlrpc_uri)
   return true;
 }
 
-void closeTransport(const TransportUDPPtr& trans)
+void closeTransport(const TransportPtr& trans)
 {
   if (trans)
   {
@@ -467,6 +491,7 @@ void Subscription::pendingConnectionDone(const PendingConnectionPtr& conn, XmlRp
   }
 
   TransportUDPPtr udp_transport;
+  TransportDMAPtr dma_transport;
 
   std::string peer_host = conn->getClient()->getHost();
   uint32_t peer_port = conn->getClient()->getPort();
@@ -474,6 +499,7 @@ void Subscription::pendingConnectionDone(const PendingConnectionPtr& conn, XmlRp
   ss << "http://" << peer_host << ":" << peer_port << "/";
   std::string xmlrpc_uri = ss.str();
   udp_transport = conn->getUDPTransport();
+  dma_transport = conn->getDMATransport();
 
   XmlRpc::XmlRpcValue proto;
   if(!XMLRPCManager::instance()->validateXmlrpcResponse("requestTopic", result, proto))
@@ -481,6 +507,8 @@ void Subscription::pendingConnectionDone(const PendingConnectionPtr& conn, XmlRp
   	ROSCPP_LOG_DEBUG("Failed to contact publisher [%s:%d] for topic [%s]",
               peer_host.c_str(), peer_port, name_.c_str());
   	closeTransport(udp_transport);
+    closeTransport(dma_transport);
+
   	return;
   }
 
@@ -488,6 +516,7 @@ void Subscription::pendingConnectionDone(const PendingConnectionPtr& conn, XmlRp
   {
   	ROSCPP_LOG_DEBUG("Couldn't agree on any common protocols with [%s] for topic [%s]", xmlrpc_uri.c_str(), name_.c_str());
   	closeTransport(udp_transport);
+    closeTransport(dma_transport);
   	return;
   }
 
@@ -495,12 +524,14 @@ void Subscription::pendingConnectionDone(const PendingConnectionPtr& conn, XmlRp
   {
   	ROSCPP_LOG_DEBUG("Available protocol info returned from %s is not a list.", xmlrpc_uri.c_str());
   	closeTransport(udp_transport);
+    closeTransport(dma_transport);
   	return;
   }
   if (proto[0].getType() != XmlRpcValue::TypeString)
   {
   	ROSCPP_LOG_DEBUG("Available protocol info list doesn't have a string as its first element.");
   	closeTransport(udp_transport);
+    closeTransport(dma_transport);
   	return;
   }
 
@@ -600,6 +631,9 @@ void Subscription::pendingConnectionDone(const PendingConnectionPtr& conn, XmlRp
       closeTransport(udp_transport);
       return;
     }
+  }
+  else if (proto_name == "DMAROS")
+  {
   }
   else
   {

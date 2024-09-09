@@ -119,16 +119,22 @@ public:
   uint32_t getNumCallbacks() const { return callbacks_.size(); }
   uint32_t getNumPublishers();
 
-  // We'll keep a list of these objects, representing in-progress XMLRPC 
+  // We'll keep a list of these objects, representing in-progress XMLRPC
   // connections to other nodes.
   class ROSCPP_DECL PendingConnection : public ASyncXMLRPCConnection
   {
     public:
-      PendingConnection(XmlRpc::XmlRpcClient* client, TransportUDPPtr udp_transport, const SubscriptionWPtr& parent, const std::string& remote_uri)
+      PendingConnection(
+        XmlRpc::XmlRpcClient* client,
+        TransportUDPPtr udp_transport,
+        const SubscriptionWPtr& parent,
+        const std::string& remote_uri,
+        TransportDMAPtr dma_transport = nullptr)
       : client_(client)
       , udp_transport_(udp_transport)
       , parent_(parent)
       , remote_uri_(remote_uri)
+      , dma_transport_(dma_transport)
       {}
 
       ~PendingConnection()
@@ -138,6 +144,7 @@ public:
 
       XmlRpc::XmlRpcClient* getClient() const { return client_; }
       TransportUDPPtr getUDPTransport() const { return udp_transport_; }
+      TransportDMAPtr getDMATransport() const { return dma_transport_; }
 
       virtual void addToDispatch(XmlRpc::XmlRpcDispatch* disp)
       {
@@ -174,6 +181,7 @@ public:
       TransportUDPPtr udp_transport_;
       SubscriptionWPtr parent_;
       std::string remote_uri_;
+      TransportDMAPtr dma_transport_;
   };
   typedef boost::shared_ptr<PendingConnection> PendingConnectionPtr;
 

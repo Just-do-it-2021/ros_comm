@@ -36,6 +36,7 @@
 #include "ros/master.h"
 #include "ros/transport/transport_tcp.h"
 #include "ros/transport/transport_udp.h"
+#include "ros/transport/transport_dma.h"
 #include "ros/rosout_appender.h"
 #include "ros/init.h"
 #include "ros/file_log.h"
@@ -686,6 +687,60 @@ bool TopicManager::requestTopic(const string &topic,
       ret[0] = int(1);
       ret[1] = string();
       ret[2] = udpros_params;
+      return true;
+    } else if (proto_name == string("DMAROS"))
+    {
+      if (proto.size() != 2 || proto[1].getType() != XmlRpcValue::TypeBase64) {
+      	ROSCPP_LOG_DEBUG("Invalid protocol parameters for DMAROS");
+        return false;
+      }
+
+      std::vector<char> header_bytes = proto[1];
+      boost::shared_array<uint8_t> buffer(new uint8_t[header_bytes.size()]);
+      memcpy(buffer.get(), &header_bytes[0], header_bytes.size());
+      Header h;
+      string err;
+      if (!h.parse(buffer, header_bytes.size(), err)) {
+      	ROSCPP_LOG_DEBUG("Unable to parse DMAROS connection header: %s", err.c_str());
+        return false;
+      }
+
+      PublicationPtr pub_ptr = lookupPublication(topic);
+      if(!pub_ptr) {
+      	ROSCPP_LOG_DEBUG("Unable to find advertised topic %s for DMAROS connection", topic.c_str());
+        return false;
+      }
+
+      std::string error_msg;
+      if (!pub_ptr->validateHeader(h, error_msg)) {
+        ROSCPP_LOG_DEBUG("Error validating header for topic [%s]: %s", topic.c_str(), error_msg.c_str());
+        return false;
+      }
+
+      TransportDMAPtr transport = connection_manager_->getDMAServerTransport()->CreateOutgoing();
+      if (!transport) {
+        ROSCPP_LOG_DEBUG("Error creating outgoing dma transport");
+        return false;
+      }
+
+      connection_manager_->dmarosIncomingConnection(transport, h);
+
+      XmlRpcValue dma_params;
+      dma_params[0] = string("DMAROS");
+      M_string m;
+      m["topic"] = topic;
+      m["md5sum"] = pub_ptr->getMD5Sum();
+      m["type"] = pub_ptr->getDataType();
+      m["callerid"] = this_node::getName();
+      m["message_definition"] = pub_ptr->getMessageDefinition();
+      boost::shared_array<uint8_t> msg_def_buffer;
+      uint32_t len;
+      Header::write(m, msg_def_buffer, len);
+      XmlRpcValue v(msg_def_buffer.get(), len);
+      dma_params[1] = v;
+      ret[0] = int(1);
+      ret[1] = string();
+      ret[2] = dma_params;
       return true;
     }
     else

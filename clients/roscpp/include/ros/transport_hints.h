@@ -151,6 +151,15 @@ public:
   }
 
   /**
+   * \brief Explicitly specifies a DMA transport.
+   */
+  TransportHints& dma()
+  {
+    transports_.push_back("DMA");
+    return *this;
+  }
+
+  /**
    * \brief Returns a vector of transports, ordered by preference
    */
   const V_string& getTransports() { return transports_; }

@@ -66,8 +66,11 @@ public:
 
   const TransportTCPPtr& getTCPServerTransport() { return tcpserver_transport_; }
   const TransportUDPPtr& getUDPServerTransport() { return udpserver_transport_; }
+  const TransportDMAPtr& getDMAServerTransport() { return dmaserver_transport_; }
 
   void udprosIncomingConnection(const TransportUDPPtr& transport, Header& header);
+
+  void dmarosIncomingConnection(const TransportDMAPtr& transport, Header& header);
 
   void start();
   void shutdown();
@@ -98,6 +101,7 @@ private:
 
   TransportTCPPtr tcpserver_transport_;
   TransportUDPPtr udpserver_transport_;
+  TransportDMAPtr dmaserver_transport_;
 
   const static int MAX_TCPROS_CONN_QUEUE = 100; // magic
 };

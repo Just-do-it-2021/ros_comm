@@ -32,6 +32,7 @@
 #include "ros/service_client_link.h"
 #include "ros/transport/transport_tcp.h"
 #include "ros/transport/transport_udp.h"
+#include "ros/transport/transport_dma.h"
 #include "ros/file_log.h"
 #include "ros/network.h"
 
@@ -79,10 +80,21 @@ void ConnectionManager::start()
     ROS_FATAL("Listen failed");
     ROS_BREAK();
   }
+
+  dmaserver_transport_ = boost::make_shared<TransportDMA>(&poll_manager_->getPollSet());
+  if(!dmaserver_transport_->CreateIncoming(true)) {
+    ROS_FATAL("Listen DMA failed");
+    ROS_BREAK();
+  }
 }
 
 void ConnectionManager::shutdown()
 {
+  if (dmaserver_transport_) {
+    dmaserver_transport_->close();
+    dmaserver_transport_.reset();
+  }
+
   if (udpserver_transport_)
   {
     udpserver_transport_->close();
@@ -168,6 +180,15 @@ void ConnectionManager::removeDroppedConnections()
     const ConnectionPtr& conn = *conn_it;
     connections_.erase(conn);
   }
+}
+
+void ConnectionManager::dmarosIncomingConnection(const TransportDMAPtr& transport, Header& header) {
+  ROSCPP_LOG_DEBUG("DMAROS received a connection");
+  ConnectionPtr conn(boost::make_shared<Connection>());
+  addConnection(conn);
+
+  conn->initialize(transport, true, NULL);
+  onConnectionHeaderReceived(conn, header);
 }
 
 void ConnectionManager::udprosIncomingConnection(const TransportUDPPtr& transport, Header& header)

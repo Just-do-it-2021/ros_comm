@@ -55,6 +55,8 @@ typedef boost::weak_ptr<void const> VoidConstWPtr;
 class Header;
 class Transport;
 typedef boost::shared_ptr<Transport> TransportPtr;
+class TransportDMA;
+typedef boost::shared_ptr<TransportDMA> TransportDMAPtr;
 class TransportTCP;
 typedef boost::shared_ptr<TransportTCP> TransportTCPPtr;
 class TransportUDP;
