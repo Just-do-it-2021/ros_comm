@@ -67,8 +67,8 @@ public:
   SubscriptionQueue(const std::string& topic, int32_t queue_size, bool allow_concurrent_callbacks);
   ~SubscriptionQueue();
 
-  void push(const SubscriptionCallbackHelperPtr& helper, const MessageDeserializerPtr& deserializer, 
-	    bool has_tracked_object, const VoidConstWPtr& tracked_object, bool nonconst_need_copy, 
+  void push(const SubscriptionCallbackHelperPtr& helper, const MessageDeserializerPtr& deserializer,
+	    bool has_tracked_object, const VoidConstWPtr& tracked_object, bool nonconst_need_copy,
 	    ros::Time receipt_time = ros::Time(), bool* was_full = 0);
   void clear();
 
@@ -88,6 +88,9 @@ private:
   bool allow_concurrent_callbacks_;
 
   boost::recursive_mutex callback_mutex_;
+
+  bool delay_enable_;
+  uint64_t max_delay_ms_;
 };
 
 }

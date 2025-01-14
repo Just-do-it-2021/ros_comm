@@ -30,6 +30,8 @@
 #include "ros/message_deserializer.h"
 #include "ros/subscription_callback_helper.h"
 
+#include <boost/lexical_cast.hpp>
+
 namespace ros
 {
 
@@ -39,7 +41,29 @@ SubscriptionQueue::SubscriptionQueue(const std::string& topic, int32_t queue_siz
 , full_(false)
 , queue_size_(0)
 , allow_concurrent_callbacks_(allow_concurrent_callbacks)
-{}
+{
+  char *delay_enable = getenv("ROS_DELAY_ENABLE");
+  if( nullptr != delay_enable ) {
+    try {
+      delay_enable_ = boost::lexical_cast<bool>(delay_enable);
+    } catch ( boost::bad_lexical_cast& ) {
+      //nothing
+    }
+  } else {
+    delay_enable_ = false;
+  }
+
+  char *max_delay_ms = getenv("ROS_MAX_DELAY_MS");
+  if( nullptr != max_delay_ms ) {
+    try {
+      max_delay_ms_ = boost::lexical_cast<uint64_t>(max_delay_ms);
+    } catch ( boost::bad_lexical_cast& ) {
+      //nothing
+    }
+  } else {
+    max_delay_ms_ = 200;
+  }
+}
 
 SubscriptionQueue::~SubscriptionQueue()
 {
@@ -161,7 +185,16 @@ CallbackInterface::CallResult SubscriptionQueue::call()
 
     SubscriptionCallbackHelperCallParams params;
     params.event = MessageEvent<void const>(msg, i.deserializer->getConnectionHeader(), i.receipt_time, i.nonconst_need_copy, MessageEvent<void const>::CreateFunction());
+    ros::Time cb_start = ros::Time::now();
+    assert(cb_start > i.receipt_time);
     i.helper->call(params);
+    ros::Time cb_end = ros::Time::now();
+
+    assert(cb_end > cb_start);
+    if(delay_enable_ && (((cb_end - cb_start).toNSec()) > static_cast<int64_t>(max_delay_ms_ * 1000 * 1000))) {
+      ROS_WARN("Topic: %s, recv timestamp: %lu, recv-cb cost: %ld, cb-cost: %ld",
+        topic_.c_str(), i.receipt_time.toNSec(), (cb_start - i.receipt_time).toNSec(), (cb_end - cb_start).toNSec());
+    }
   }
 
   return CallbackInterface::Success;

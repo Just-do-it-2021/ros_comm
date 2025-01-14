@@ -29,6 +29,10 @@
 #include "ros/ros.h"
 #include "ros/callback_queue.h"
 
+#include <sched.h>
+#include "boost/lexical_cast.hpp"
+#include <pthread.h>
+
 #include <boost/thread/thread.hpp>
 #include <boost/thread/mutex.hpp>
 
@@ -133,6 +137,26 @@ void SingleThreadedSpinner::spin(CallbackQueue* queue)
     ROS_FATAL_STREAM(errorMessage);
     throw std::runtime_error(errorMessage);
   }
+
+#if 0
+  int priority = 90;
+  char * pri = getenv("ROSCPP_RW_PRI");
+  if( nullptr != pri ) {
+    try {
+      priority = boost::lexical_cast<int>(pri);
+    } catch ( boost::bad_lexical_cast& ) {
+      //nothing
+    }
+  }
+
+  sched_param param;
+  param.sched_priority = priority;
+
+  int ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+  if ( ret != 0) {
+    ROS_WARN("Error setting thread scheduling parameters: %d", ret);
+  }
+#endif
 
   ros::WallDuration timeout(0.1f);
   ros::NodeHandle n;
@@ -248,6 +272,26 @@ void AsyncSpinnerImpl::stop()
 void AsyncSpinnerImpl::threadFunc()
 {
   disableAllSignalsInThisThread();
+
+#if 0
+  int priority = 90;
+  char * pri = getenv("ROSCPP_RW_PRI");
+  if( nullptr != pri ) {
+    try {
+      priority = boost::lexical_cast<int>(pri);
+    } catch ( boost::bad_lexical_cast& ) {
+      //nothing
+    }
+  }
+
+  sched_param param;
+  param.sched_priority = priority;
+
+  int ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+  if ( ret != 0) {
+    ROS_WARN("Error setting thread scheduling parameters: %d", ret);
+  }
+#endif
 
   CallbackQueue* queue = callback_queue_;
   bool use_call_available = thread_count_ == 1;

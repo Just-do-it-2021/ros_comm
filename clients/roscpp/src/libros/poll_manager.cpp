@@ -28,6 +28,9 @@
 #include "ros/poll_manager.h"
 #include "ros/common.h"
 
+#include <sched.h>
+#include "boost/lexical_cast.hpp"
+
 #include <signal.h>
 
 namespace ros
@@ -72,6 +75,28 @@ void PollManager::shutdown()
 void PollManager::threadFunc()
 {
   disableAllSignalsInThisThread();
+
+#if 0
+  boost::thread::native_handle_type native_handle = thread_.native_handle();
+
+  int priority = 90;
+  char * pri = getenv("ROSCPP_RW_PRI");
+  if( nullptr != pri ) {
+    try {
+      priority = boost::lexical_cast<int>(pri);
+    } catch ( boost::bad_lexical_cast& ) {
+      //nothing
+    }
+  }
+
+  sched_param param;
+  param.sched_priority = priority;
+
+  int ret = pthread_setschedparam(native_handle, SCHED_FIFO, &param);
+  if ( ret != 0) {
+    ROS_WARN("Error setting thread scheduling parameters: %d", ret);
+  }
+#endif
 
   while (!shutting_down_)
   {
